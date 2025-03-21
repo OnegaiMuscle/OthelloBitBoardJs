@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -258,16 +259,16 @@
         const MAX_TRANSPOSITION_ENTRIES = 1000000;
         const transpositionTable = new Map();
 
-        // Table des poids pour l'évaluation de position - Valeurs ajustées
+        // Table des poids pour l'évaluation de position
         const POSITION_WEIGHTS = [
-            500, -150,  30,  10,  10,  30, -150,  500,  // Coins plus importants
-            -150, -250,  -5,  -5,  -5,  -5, -250, -150,  // Cases X plus pénalisées
-             30,   -5,   1,   1,   1,   1,   -5,   30,
-             10,   -5,   1,   0,   0,   1,   -5,   10,
-             10,   -5,   1,   0,   0,   1,   -5,   10,
-             30,   -5,   1,   1,   1,   1,   -5,   30,
-            -150, -250,  -5,  -5,  -5,  -5, -250, -150,  // Cases X plus pénalisées
-            500, -150,  30,  10,  10,  30, -150,  500   // Coins plus importants
+            100, -20, 10,  5,  5, 10, -20, 100,
+            -20, -50, -2, -2, -2, -2, -50, -20,
+             10,  -2,  1,  1,  1,  1,  -2,  10,
+              5,  -2,  1,  0,  0,  1,  -2,   5,
+              5,  -2,  1,  0,  0,  1,  -2,   5,
+             10,  -2,  1,  1,  1,  1,  -2,  10,
+            -20, -50, -2, -2, -2, -2, -50, -20,
+            100, -20, 10,  5,  5, 10, -20, 100
         ];
 
         // Générer un hash Zobrist pour la position actuelle
@@ -602,63 +603,6 @@
             }
         }
 
-        // Analyse les menaces de coin et détermine si un coup est risqué
-        function analyzeMoveRisk(move) {
-            const {row, col} = bitToCoords(move);
-
-            // État avant le coup
-            const blackBackup = blackDiscs;
-            const whiteBackup = whiteDiscs;
-            const playerBackup = currentPlayer;
-
-            // Simuler le coup
-            makeMove(row, col);
-            currentPlayer = getOpponent(currentPlayer);
-            updateValidMoves();
-
-            let risk = 0;
-
-            // Vérifier si l'adversaire peut prendre un coin
-            if ((validMoves & CORNER_MASK) !== 0n) {
-                risk = 3; // Risque élevé: donne directement accès à un coin
-            } else {
-                // Simuler tous les coups de l'adversaire pour voir s'il peut nous donner accès à un coin
-                const opponentMoves = getMoves();
-                for (const opMove of opponentMoves) {
-                    const {row: opRow, col: opCol} = bitToCoords(opMove);
-
-                    // État avant le coup de l'adversaire
-                    const blackBackup2 = blackDiscs;
-                    const whiteBackup2 = whiteDiscs;
-                    const playerBackup2 = currentPlayer;
-
-                    // Simuler le coup de l'adversaire
-                    makeMove(opRow, opCol);
-                    currentPlayer = getOpponent(currentPlayer);
-                    updateValidMoves();
-
-                    // Vérifier si nous pouvons prendre un coin
-                    if ((validMoves & CORNER_MASK) !== 0n) {
-                        risk = Math.max(risk, 1); // Risque faible: coup qui pourrait ouvrir un accès à un coin
-                    }
-
-                    // Restaurer l'état après le coup de l'adversaire
-                    blackDiscs = blackBackup2;
-                    whiteDiscs = whiteBackup2;
-                    currentPlayer = playerBackup2;
-                    updateValidMoves();
-                }
-            }
-
-            // Restaurer l'état initial
-            blackDiscs = blackBackup;
-            whiteDiscs = whiteBackup;
-            currentPlayer = playerBackup;
-            updateValidMoves();
-
-            return risk;
-        }
-
         // Évaluation rapide et optimisée de la position
         function evaluateBoard() {
             // Phase de jeu (début, milieu, fin)
@@ -673,26 +617,19 @@
 
             // Points de mobilité (nombre de coups légaux)
             const playerBackup = currentPlayer;
-
-            // Vérifier les coins possibles au prochain coup
             currentPlayer = BLACK;
             updateValidMoves();
             const blackMobility = countBits(validMoves);
-            const blackCanTakeCorner = (validMoves & CORNER_MASK) !== 0n;
 
             currentPlayer = WHITE;
             updateValidMoves();
             const whiteMobility = countBits(validMoves);
-            const whiteCanTakeCorner = (validMoves & CORNER_MASK) !== 0n;
 
             // Restaurer le joueur actuel
             currentPlayer = playerBackup;
             updateValidMoves();
 
             const mobilityScore = blackMobility - whiteMobility;
-
-            // Menace de coin (pénalité pour permettre à l'adversaire de prendre un coin)
-            const cornerThreatScore = (blackCanTakeCorner ? -200 : 0) + (whiteCanTakeCorner ? 200 : 0);
 
             // Points stratégiques
             const blackCorners = countBits(blackDiscs & CORNER_MASK);
@@ -703,68 +640,13 @@
             const whiteEdges = countBits(whiteDiscs & EDGE_MASK);
             const edgeScore = blackEdges - whiteEdges;
 
-            // Modifier le score pour les cases X adjacentes aux coins
-            let xSquaresScore = 0;
-            // Pour chaque coin, vérifier s'il est occupé
-            const corners = [
-                { row: 0, col: 0 },
-                { row: 0, col: 7 },
-                { row: 7, col: 0 },
-                { row: 7, col: 7 }
-            ];
+            const blackXSquares = countBits(blackDiscs & X_SQUARES_MASK);
+            const whiteXSquares = countBits(whiteDiscs & X_SQUARES_MASK);
+            const xSquaresScore = whiteXSquares - blackXSquares; // Négatif car défavorable
 
-            for (const corner of corners) {
-                const cornerBit = coordsToBit(corner.row, corner.col);
-                const cornerOwner = (blackDiscs & cornerBit) !== 0n ? BLACK :
-                                   (whiteDiscs & cornerBit) !== 0n ? WHITE : EMPTY;
-
-                // Si le coin est vide, pénaliser les cases X adjacentes
-                if (cornerOwner === EMPTY) {
-                    // Définir les positions des cases X adjacentes au coin
-                    const xSquares = [];
-                    if (corner.row === 0 && corner.col === 0) {
-                        xSquares.push({ row: 0, col: 1 }, { row: 1, col: 0 }, { row: 1, col: 1 });
-                    } else if (corner.row === 0 && corner.col === 7) {
-                        xSquares.push({ row: 0, col: 6 }, { row: 1, col: 6 }, { row: 1, col: 7 });
-                    } else if (corner.row === 7 && corner.col === 0) {
-                        xSquares.push({ row: 6, col: 0 }, { row: 6, col: 1 }, { row: 7, col: 1 });
-                    } else {
-                        xSquares.push({ row: 6, col: 6 }, { row: 6, col: 7 }, { row: 7, col: 6 });
-                    }
-
-                    // Pénaliser fortement l'occupation des cases X quand le coin est vide
-                    for (const pos of xSquares) {
-                        const bit = coordsToBit(pos.row, pos.col);
-                        if ((blackDiscs & bit) !== 0n) xSquaresScore -= 30;
-                        if ((whiteDiscs & bit) !== 0n) xSquaresScore += 30;
-                    }
-                }
-                // Si le coin est pris, les cases X adjacentes deviennent bonnes
-                else {
-                    const xSquares = [];
-                    if (corner.row === 0 && corner.col === 0) {
-                        xSquares.push({ row: 0, col: 1 }, { row: 1, col: 0 }, { row: 1, col: 1 });
-                    } else if (corner.row === 0 && corner.col === 7) {
-                        xSquares.push({ row: 0, col: 6 }, { row: 1, col: 6 }, { row: 1, col: 7 });
-                    } else if (corner.row === 7 && corner.col === 0) {
-                        xSquares.push({ row: 6, col: 0 }, { row: 6, col: 1 }, { row: 7, col: 1 });
-                    } else {
-                        xSquares.push({ row: 6, col: 6 }, { row: 6, col: 7 }, { row: 7, col: 6 });
-                    }
-
-                    // Si le coin est de notre couleur, les cases X deviennent un avantage
-                    for (const pos of xSquares) {
-                        const bit = coordsToBit(pos.row, pos.col);
-                        if (cornerOwner === BLACK) {
-                            if ((blackDiscs & bit) !== 0n) xSquaresScore += 10;
-                            if ((whiteDiscs & bit) !== 0n) xSquaresScore -= 5;
-                        } else {
-                            if ((blackDiscs & bit) !== 0n) xSquaresScore -= 5;
-                            if ((whiteDiscs & bit) !== 0n) xSquaresScore += 10;
-                        }
-                    }
-                }
-            }
+            const blackCSquares = countBits(blackDiscs & C_SQUARES_MASK);
+            const whiteCSquares = countBits(whiteDiscs & C_SQUARES_MASK);
+            const cSquaresScore = whiteCSquares - blackCSquares; // Négatif car défavorable
 
             // Points de position (basés sur les poids)
             let positionalScore = 0;
@@ -780,30 +662,30 @@
             // Ajustements de poids selon la phase de jeu
             let finalScore;
             if (isEarlyGame) {
-                // Début de partie: priorité aux coins, mobilité et éviter de donner accès aux coins
+                // Début de partie: priorité aux coins et à la mobilité
                 finalScore =
-                    mobilityScore * 15 +
-                    cornerScore * 300 +    // Augmenté
-                    cornerThreatScore +    // Nouveau: pénalité pour menace de coin
-                    edgeScore * 8 +
-                    xSquaresScore +        // Modifié pour considérer l'état du coin
+                    mobilityScore * 10 +
+                    cornerScore * 100 +
+                    edgeScore * 5 +
+                    xSquaresScore * 10 +
+                    cSquaresScore * 5 +
                     positionalScore;
             } else if (isEndGame) {
                 // Fin de partie: priorité au matériel et aux coins
                 finalScore =
-                    materialScore * 15 +
-                    cornerScore * 300 +
-                    edgeScore * 15 +
+                    materialScore * 10 +
+                    cornerScore * 100 +
+                    edgeScore * 10 +
                     positionalScore;
             } else {
-                // Milieu de partie: équilibre mais toujours priorité aux coins
+                // Milieu de partie: équilibre
                 finalScore =
-                    materialScore * 5 +
-                    mobilityScore * 10 +
-                    cornerScore * 300 +
-                    cornerThreatScore +    // Nouveau: pénalité pour menace de coin
-                    edgeScore * 12 +
-                    xSquaresScore +
+                    materialScore * 2 +
+                    mobilityScore * 5 +
+                    cornerScore * 100 +
+                    edgeScore * 10 +
+                    xSquaresScore * 5 +
+                    cSquaresScore * 5 +
                     positionalScore;
             }
 
@@ -824,62 +706,31 @@
 
         // Attribuer un score à un coup pour l'ordonnancement
         function scoreMove(move) {
-            // Vérifier si le mouvement prend un coin
-            if ((move & CORNER_MASK) !== 0n) return 10000;  // Valeur augmentée considérablement
-
-            // Position du coup
-            const {row, col} = bitToCoords(move);
-
-            // Vérifier si ce coup donne accès à un coin à l'adversaire
-            const originalPlayer = currentPlayer;
-            const blackBackup = blackDiscs;
-            const whiteBackup = whiteDiscs;
-
-            // Simuler le coup
-            makeMove(row, col);
-
-            // Changer de joueur et vérifier s'il peut prendre un coin
-            currentPlayer = getOpponent(currentPlayer);
-            updateValidMoves();
-            const givesCornerAccess = (validMoves & CORNER_MASK) !== 0n;
-
-            // Restaurer l'état
-            blackDiscs = blackBackup;
-            whiteDiscs = whiteBackup;
-            currentPlayer = originalPlayer;
-            updateValidMoves();
-
-            // Fortement pénaliser les mouvements qui donnent accès à un coin
-            if (givesCornerAccess) return -5000;
-
+            // Coins: très haut
+            if ((move & CORNER_MASK) !== 0n) return 1000;
             // Cases X (adjacentes aux coins): très bas sauf si les coins sont déjà pris
             if ((move & X_SQUARES_MASK) !== 0n) {
-                // Déterminer quel coin est adjacent
-                let cornerRow, cornerCol;
-                if (row < 2) cornerRow = 0; else cornerRow = 7;
-                if (col < 2) cornerCol = 0; else cornerCol = 7;
-
-                // Si le coin est vide, c'est très mauvais de jouer à côté
+                const {row, col} = bitToCoords(move);
+                const cornerRow = row === 0 ? 0 : 7;
+                const cornerCol = col === 0 ? 0 : 7;
                 if (getPiece(cornerRow, cornerCol) === EMPTY) {
-                    return -500;
+                    return -100; // Mauvais si le coin n'est pas pris
                 }
             }
-
             // Cases C (pré-coins): bas sauf si les coins sont déjà pris
             if ((move & C_SQUARES_MASK) !== 0n) {
-                let cornerRow, cornerCol;
-                if (row < 2) cornerRow = 0; else cornerRow = 7;
-                if (col < 2) cornerCol = 0; else cornerCol = 7;
-
+                const {row, col} = bitToCoords(move);
+                const cornerRow = row <= 1 ? 0 : 7;
+                const cornerCol = col <= 1 ? 0 : 7;
                 if (getPiece(cornerRow, cornerCol) === EMPTY) {
-                    return -300;
+                    return -50; // Mauvais si le coin n'est pas pris
                 }
             }
-
-            // Bords: bonne valeur
-            if ((move & EDGE_MASK) !== 0n) return 100;
+            // Bords: haut
+            if ((move & EDGE_MASK) !== 0n) return 50;
 
             // Score basé sur la position
+            const {row, col} = bitToCoords(move);
             return POSITION_WEIGHTS[row * 8 + col];
         }
 
@@ -1046,61 +897,23 @@
             return bestValue;
         }
 
-        // Trouver le meilleur coup avec approfondissement itératif et protection des coins
+        // Trouver le meilleur coup avec approfondissement itératif
         function findBestMove(maxDepth) {
             const startTime = performance.now();
             let bestMove = null;
-            let bestScore = -Infinity;
 
-            const moves = getMoves();
-            if (moves.length === 0) return null;
-
-            // Vérifier d'abord si on peut prendre un coin
-            for (const move of moves) {
-                if ((move & CORNER_MASK) !== 0n) {
-                    return move; // Toujours prendre un coin si disponible
-                }
-            }
-
-            // Voir si un mouvement donne à l'adversaire un coin
-            const dangerousMoves = new Set();
-            for (const move of moves) {
-                const {row, col} = bitToCoords(move);
-                const blackBackup = blackDiscs;
-                const whiteBackup = whiteDiscs;
-                const playerBackup = currentPlayer;
-
-                // Simuler le coup
-                makeMove(row, col);
-                currentPlayer = getOpponent(currentPlayer);
-                updateValidMoves();
-
-                // Vérifier si l'adversaire peut prendre un coin
-                if ((validMoves & CORNER_MASK) !== 0n) {
-                    dangerousMoves.add(move.toString());
-                }
-
-                // Restaurer l'état
-                blackDiscs = blackBackup;
-                whiteDiscs = whiteBackup;
-                currentPlayer = playerBackup;
-                updateValidMoves();
-            }
-
-            // Approfondissement itératif pour les mouvements sûrs
+            // Approfondissement itératif pour une réponse plus rapide de l'IA
             for (let depth = 1; depth <= maxDepth; depth++) {
+                const moves = getMoves();
+                if (moves.length === 0) return null;
+
                 let tempBestMove = null;
-                let tempBestScore = -Infinity;
+                let bestScore = -Infinity;
 
                 // Trier les mouvements pour une meilleure efficacité
                 moves.sort((a, b) => scoreMove(b) - scoreMove(a));
 
                 for (const move of moves) {
-                    // Éviter les mouvements qui donnent un coin à l'adversaire
-                    if (dangerousMoves.has(move.toString()) && moves.length > 1) {
-                        continue;
-                    }
-
                     // Sauvegarde de l'état
                     const blackBackup = blackDiscs;
                     const whiteBackup = whiteDiscs;
@@ -1112,10 +925,8 @@
                     currentPlayer = getOpponent(currentPlayer);
                     updateValidMoves();
 
-                    // Évaluer le coup avec une recherche plus profonde pour les mouvements importants
-                    const isCornerMove = (move & CORNER_MASK) !== 0n;
-                    const effectiveDepth = isCornerMove ? depth + 1 : depth; // Recherche plus profonde pour les coins
-                    const score = -minimax(effectiveDepth - 1, -Infinity, -tempBestScore, false);
+                    // Évaluer le coup
+                    const score = -minimax(depth - 1, -Infinity, -bestScore, false);
 
                     // Restaurer l'état
                     blackDiscs = blackBackup;
@@ -1123,53 +934,15 @@
                     currentPlayer = playerBackup;
                     updateValidMoves();
 
-                    if (score > tempBestScore) {
-                        tempBestScore = score;
+                    if (score > bestScore) {
+                        bestScore = score;
                         tempBestMove = move;
-                    }
-                }
-
-                // Si tous les mouvements semblent mauvais mais nous devons jouer
-                if (tempBestMove === null && dangerousMoves.size > 0 && bestMove === null) {
-                    // Prendre le moins mauvais des mouvements dangereux
-                    let leastBadScore = -Infinity;
-                    let leastBadMove = null;
-
-                    for (const move of moves) {
-                        if (!dangerousMoves.has(move.toString())) continue;
-
-                        const {row, col} = bitToCoords(move);
-                        const blackBackup = blackDiscs;
-                        const whiteBackup = whiteDiscs;
-                        const playerBackup = currentPlayer;
-
-                        makeMove(row, col);
-                        currentPlayer = getOpponent(currentPlayer);
-                        updateValidMoves();
-
-                        const score = -minimax(depth - 1, -Infinity, Infinity, false);
-
-                        blackDiscs = blackBackup;
-                        whiteDiscs = whiteBackup;
-                        currentPlayer = playerBackup;
-                        updateValidMoves();
-
-                        if (score > leastBadScore) {
-                            leastBadScore = score;
-                            leastBadMove = move;
-                        }
-                    }
-
-                    if (leastBadMove !== null) {
-                        tempBestMove = leastBadMove;
-                        tempBestScore = leastBadScore;
                     }
                 }
 
                 // Mettre à jour le meilleur coup si une solution a été trouvée
                 if (tempBestMove !== null) {
                     bestMove = tempBestMove;
-                    bestScore = tempBestScore;
                 }
 
                 // Vérifier si on a suffisamment de temps pour continuer
@@ -1181,7 +954,7 @@
             }
 
             currentThinkingTime = performance.now() - startTime;
-            console.log(`L'IA a réfléchi pendant ${currentThinkingTime.toFixed(2)}ms, score: ${bestScore}`);
+            console.log(`L'IA a réfléchi pendant ${currentThinkingTime.toFixed(2)}ms`);
 
             return bestMove;
         }
