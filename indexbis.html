@@ -200,10 +200,10 @@
             whiteDiscs = 0n;
 
             // Placer les 4 pions initiaux (centre du plateau)
-            setPiece(3, 4, BLACK);
-            setPiece(4, 3, BLACK);
-            setPiece(3, 3, WHITE);
-            setPiece(4, 4, WHITE);
+            setPiece(27, BLACK);
+            setPiece(36, BLACK);
+            setPiece(28, WHITE);
+            setPiece(35, WHITE);
 
             currentPlayer = BLACK;
             updateValidMoves();
@@ -212,22 +212,21 @@
         }
 
         // Convertir coordonnées (row, col) en position bit unique
-        function coordsToBit(row, col) {
-            return 1n << BigInt(row * 8 + col);
+        function coordsToBit(pos) {
+            return 1n << BigInt(pos);
         }
 
         // Convertir une position bit en coordonnées (row, col)
         function bitToCoords(bit) {
             const pos = BigInt(Math.log2(Number(bit)));
             return {
-                row: Number(pos / 8n),
-                col: Number(pos % 8n)
+                pos: Number(pos)
             };
         }
 
         // Placer un pion à une position donnée
-        function setPiece(row, col, player) {
-            const bit = coordsToBit(row, col);
+        function setPiece(pos, player) {
+            const bit = coordsToBit(pos);
             if (player === BLACK) {
                 blackDiscs |= bit;
                 whiteDiscs &= ~bit;
@@ -241,8 +240,8 @@
         }
 
         // Obtenir le joueur à une position donnée
-        function getPiece(row, col) {
-            const bit = coordsToBit(row, col);
+        function getPiece(pos) {
+            const bit = coordsToBit(pos);
             if ((blackDiscs & bit) !== 0n) return BLACK;
             if ((whiteDiscs & bit) !== 0n) return WHITE;
             return EMPTY;
@@ -300,31 +299,31 @@
             const playerDiscs = getCurrentPlayerDiscs();
             const opponentDiscs = getOpponentDiscs();
             let validMovesBitboard = 0n;
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord-Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud-Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud-Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
-
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord-Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
-            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             return validMovesBitboard;
         }
 
@@ -334,8 +333,8 @@
         }
 
         // Vérifier si un coup est valide
-        function isValidMove(row, col) {
-            const bit = coordsToBit(row, col);
+        function isValidMove(pos) {
+            const bit = coordsToBit(pos);
             return (validMoves & bit) !== 0n;
         }
 
@@ -375,10 +374,10 @@
         }
 
         // Appliquer un coup (capturer les pions)
-        function makeMove(row, col) {
-            if (!isValidMove(row, col)) return false;
+        function makeMove(pos) {
+            if (!isValidMove(pos)) return false;
 
-            const movePosition = coordsToBit(row, col);
+            const movePosition = coordsToBit(pos);
             let capturedTotal = 0n;
 
             // Capturer dans toutes les directions
@@ -476,19 +475,17 @@
             const boardElement = document.getElementById('board');
             boardElement.innerHTML = '';
 
-            for (let row = 0; row < BOARD_SIZE; row++) {
-                for (let col = 0; col < BOARD_SIZE; col++) {
+            for (let pos = 0; pos < 64; pos++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    cell.dataset.row = row;
-                    cell.dataset.col = col;
+                    cell.dataset.pos = pos;
 
                     cell.addEventListener('click', () => {
-                        handleCellClick(row, col);
+                        handleCellClick(pos);
                     });
 
                     // Ajouter un pion si nécessaire
-                    const piece = getPiece(row, col);
+                    const piece = getPiece(pos);
                     if (piece !== EMPTY) {
                         const disc = document.createElement('div');
                         disc.className = `disc ${piece === BLACK ? 'black' : 'white'}`;
@@ -496,21 +493,21 @@
                     }
 
                     // Marquer les coups valides
-                    if (isValidMove(row, col)) {
+                    if (isValidMove(pos)) {
                         cell.classList.add('valid-move');
                     }
 
                     boardElement.appendChild(cell);
-                }
+
             }
 
             updateStatus();
         }
 
         // Gérer le clic sur une cellule
-        function handleCellClick(row, col) {
-            if (isValidMove(row, col)) {
-                makeMove(row, col);
+        function handleCellClick(pos) {
+            if (isValidMove(pos)) {
+                makeMove(pos);
                 switchPlayer();
                 renderBoard();
             }

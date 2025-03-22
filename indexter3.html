@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Bitboard Edition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            max-width: 100%;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            background-color: #000;
+            border: 10px solid #553100;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: #008800;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .valid-move {
+            background-color: #00aa00;
+        }
+        .valid-move::after {
+            content: "";
+            width: 12px;
+            height: 12px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+        }
+        .disc {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+        .disc.white {
+            background-color: #fff;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+        }
+        .disc.black {
+            background-color: #000;
+            box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.4);
+        }
+        .info-panel {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 400px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .ai-settings {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 400px;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .player {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .player-disc {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+        .player-disc.white {
+            background-color: #fff;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.4);
+        }
+        .player-disc.black {
+            background-color: #000;
+            box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.4);
+        }
+        .current-player {
+            font-weight: bold;
+            color: #008800;
+        }
+        .status-message {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+        button {
+            background-color: #553100;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #7b4700;
+        }
+
+        @media (max-width: 500px) {
+            .cell {
+                width: 40px;
+                height: 40px;
+            }
+            .disc {
+                width: 32px;
+                height: 32px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .cell {
+                width: 35px;
+                height: 35px;
+            }
+            .disc {
+                width: 28px;
+                height: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Othello - Bitboard Edition</h1>
+    <div class="game-container">
+        <div class="info-panel">
+            <div class="player black-player">
+                <div class="player-disc black"></div>
+                <div>Noir: <span id="black-count">2</span></div>
+            </div>
+            <div class="player white-player">
+                <div class="player-disc white"></div>
+                <div>Blanc: <span id="white-count">2</span></div>
+            </div>
+        </div>
+
+        <div class="ai-settings">
+            <div>
+                <label for="ai-toggle">IA: </label>
+                <input type="checkbox" id="ai-toggle">
+            </div>
+            <div>
+                <label for="ai-depth">Niveau: </label>
+                <select id="ai-depth">
+                    <option value="2">Facile</option>
+                    <option value="4">Moyen</option>
+                    <option value="6" selected>Difficile</option>
+                    <option value="8">Expert</option>
+                </select>
+            </div>
+            <div>
+                <label for="ai-color">Couleur: </label>
+                <select id="ai-color">
+                    <option value="white" selected>Blanc</option>
+                    <option value="black">Noir</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div class="status-message" id="status-message">Tour du joueur noir</div>
+
+        <button id="restart-btn">Recommencer</button>
+    </div>
+
+    <script>
+        // Constantes et variables du jeu
+        const BOARD_SIZE = 8;
+        const EMPTY = 0n;
+        const BLACK = 1n;
+        const WHITE = 2n;
+
+        // Directions pour chercher les alignements
+        const NORTH = -8n;
+        const NORTH_EAST = -7n;
+        const EAST = 1n;
+        const SOUTH_EAST = 9n;
+        const SOUTH = 8n;
+        const SOUTH_WEST = 7n;
+        const WEST = -1n;
+        const NORTH_WEST = -9n;
+
+        const DIRECTIONS = [NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST];
+
+        // Masques pour éviter les débordements
+        const NOT_A_FILE = 0xfefefefefefefefen; // pas la colonne A
+        const NOT_H_FILE = 0x7f7f7f7f7f7f7f7fn; // pas la colonne H
+
+        // Masques utiles pour l'évaluation
+        const CORNER_MASK = 0x8100000000000081n; // Les quatre coins
+        const EDGE_MASK = 0xFF818181818181FFn; // Les bords du plateau
+        const X_SQUARES_MASK = 0x0042000000004200n; // Cases autour des coins (défavorables)
+        const C_SQUARES_MASK = 0x4281000000008142n; // Cases pré-coins (défavorables)
+
+        // État du jeu
+        let blackDiscs = 0n;
+        let whiteDiscs = 0n;
+        let currentPlayer = BLACK;
+        let validMoves = 0n;
+
+        // Configuration IA
+        let aiEnabled = false;
+        let aiDepth = 6;
+        let aiPlayer = WHITE;
+        let currentThinkingTime = 0;
+
+        // Table de transposition pour optimisation
+        const transpositionTable = new Map();
+
+        // Table des poids pour l'évaluation de position
+        const POSITION_WEIGHTS = [
+            500, -150,  30,  10,  10,  30, -150,  500,  // Coins plus importants
+            -150, -250,  -5,  -5,  -5,  -5, -250, -150,  // Cases X plus pénalisées
+             30,   -5,   1,   1,   1,   1,   -5,   30,
+             10,   -5,   1,   0,   0,   1,   -5,   10,
+             10,   -5,   1,   0,   0,   1,   -5,   10,
+             30,   -5,   1,   1,   1,   1,   -5,   30,
+            -150, -250,  -5,  -5,  -5,  -5, -250, -150,  // Cases X plus pénalisées
+            500, -150,  30,  10,  10,  30, -150,  500   // Coins plus importants
+        ];
+
+        // Initialisation du jeu
+        function initGame() {
+            // Position initiale standard d'Othello
+            blackDiscs = 0n;
+            whiteDiscs = 0n;
+
+            // Placer les 4 pions initiaux (centre du plateau)
+            setPiece(27, BLACK);
+            setPiece(36, BLACK);
+            setPiece(28, WHITE);
+            setPiece(35, WHITE);
+
+            currentPlayer = BLACK;
+            transpositionTable.clear();
+            updateValidMoves();
+            renderBoard();
+            updateStatus();
+
+            // Si l'IA joue en premier
+            if (aiEnabled && currentPlayer === aiPlayer) {
+                setTimeout(makeAIMove, 100);
+            }
+        }
+
+        // Convertir coordonnées (row, col) en position bit unique
+        function coordsToBit(pos) {
+            return 1n << BigInt(pos);
+        }
+
+        // Convertir une position bit en coordonnées (row, col)
+        function bitToCoords(bit) {
+            const pos = BigInt(Math.log2(Number(bit)));
+            return {
+                pos: Number(pos)
+            };
+        }
+
+        // Fonction pour convertir pos en row,col pour l'affichage
+        function posToRowCol(pos) {
+            return {
+                row: Math.floor(pos / 8),
+                col: pos % 8
+            };
+        }
+
+        // Placer un pion à une position donnée
+        function setPiece(pos, player) {
+            const bit = coordsToBit(pos);
+            if (player === BLACK) {
+                blackDiscs |= bit;
+                whiteDiscs &= ~bit;
+            } else if (player === WHITE) {
+                whiteDiscs |= bit;
+                blackDiscs &= ~bit;
+            } else { // EMPTY
+                blackDiscs &= ~bit;
+                whiteDiscs &= ~bit;
+            }
+        }
+
+        // Obtenir le joueur à une position donnée
+        function getPiece(pos) {
+            const bit = coordsToBit(pos);
+            if ((blackDiscs & bit) !== 0n) return BLACK;
+            if ((whiteDiscs & bit) !== 0n) return WHITE;
+            return EMPTY;
+        }
+
+        // Obtenir la valeur du joueur opposé
+        function getOpponent(player) {
+            return player === BLACK ? WHITE : BLACK;
+        }
+
+        // Obtenir le bitboard du joueur actuel
+        function getCurrentPlayerDiscs() {
+            return currentPlayer === BLACK ? blackDiscs : whiteDiscs;
+        }
+
+        // Obtenir le bitboard du joueur opposé
+        function getOpponentDiscs() {
+            return currentPlayer === BLACK ? whiteDiscs : blackDiscs;
+        }
+
+        // Calculer les coups valides dans une direction donnée
+        function getValidMovesInDirection(playerDiscs, opponentDiscs, direction, edgeMask) {
+            // Cases adjacentes aux pions du joueur dans la direction, qui contiennent des pions adverses
+            let candidates = shift(playerDiscs, direction) & opponentDiscs & edgeMask;
+            if (candidates === 0n) return 0n;
+
+            // Continuer à chercher des séquences de pions adverses
+            let validPositions = 0n;
+            let temp = candidates;
+
+            // Chercher les cases vides après des pions adverses
+            for (let i = 0; i < 5; i++) {
+                temp = shift(temp, direction) & opponentDiscs & edgeMask;
+                candidates |= temp;
+            }
+
+            // Les cases vides après une séquence de pions adverses sont des coups valides
+            temp = shift(candidates, direction) & ~(playerDiscs | opponentDiscs) & edgeMask;
+            validPositions |= temp;
+
+            return validPositions;
+        }
+
+        // Effectuer un décalage de bits en tenant compte de la direction
+        function shift(bitboard, direction) {
+            if (direction > 0) {
+                return bitboard << direction;
+            } else {
+                return bitboard >> -direction;
+            }
+        }
+
+        // Calculer tous les coups valides pour le joueur actuel
+        function calculateValidMoves() {
+            const playerDiscs = getCurrentPlayerDiscs();
+            const opponentDiscs = getOpponentDiscs();
+            let validMovesBitboard = 0n;
+
+            // Nord
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
+
+            // Nord-Est
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
+
+            // Est
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
+
+            // Sud-Est
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
+
+            // Sud
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
+
+            // Sud-Ouest
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
+
+            // Ouest
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
+
+            // Nord-Ouest
+            validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
+
+            return validMovesBitboard;
+        }
+
+        // Mettre à jour les coups valides pour le joueur actuel
+        function updateValidMoves() {
+            validMoves = calculateValidMoves();
+        }
+
+        // Vérifier si un coup est valide
+        function isValidMove(pos) {
+            const bit = coordsToBit(pos);
+            return (validMoves & bit) !== 0n;
+        }
+
+        // Capturer les pions dans une direction
+        function captureInDirection(movePosition, direction, edgeMask) {
+            const playerDiscs = getCurrentPlayerDiscs();
+            const opponentDiscs = getOpponentDiscs();
+
+            let captured = 0n;
+            let frontier = movePosition;
+
+            // Avancer dans la direction spécifiée
+            frontier = shift(frontier, direction) & edgeMask;
+
+            // Si nous ne trouvons pas de pion adverse dans cette direction, pas de capture
+            if ((frontier & opponentDiscs) === 0n) return 0n;
+
+            let potentialCaptures = 0n;
+
+            // Tant qu'on trouve des pions adverses, les ajouter comme captures potentielles
+            while ((frontier & opponentDiscs) !== 0n) {
+                potentialCaptures |= frontier;
+                frontier = shift(frontier, direction) & edgeMask;
+
+                // Si on trouve un de nos pions, valider les captures
+                if ((frontier & playerDiscs) !== 0n) {
+                    return potentialCaptures;
+                }
+
+                // Si on atteint une case vide ou le bord du plateau, pas de capture
+                if (frontier === 0n || (frontier & (playerDiscs | opponentDiscs)) === 0n) {
+                    break;
+                }
+            }
+
+            return 0n; // Pas de capture dans cette direction
+        }
+
+        // Appliquer un coup (capturer les pions)
+        function makeMove(pos) {
+            if (!isValidMove(pos)) return false;
+
+            const movePosition = coordsToBit(pos);
+            let capturedTotal = 0n;
+
+            // Capturer dans toutes les directions
+            capturedTotal |= captureInDirection(movePosition, NORTH, 0xFFFFFFFFFFFFFFFFn);
+            capturedTotal |= captureInDirection(movePosition, NORTH_EAST, NOT_A_FILE);
+            capturedTotal |= captureInDirection(movePosition, EAST, NOT_A_FILE);
+            capturedTotal |= captureInDirection(movePosition, SOUTH_EAST, NOT_A_FILE);
+            capturedTotal |= captureInDirection(movePosition, SOUTH, 0xFFFFFFFFFFFFFFFFn);
+            capturedTotal |= captureInDirection(movePosition, SOUTH_WEST, NOT_H_FILE);
+            capturedTotal |= captureInDirection(movePosition, WEST, NOT_H_FILE);
+            capturedTotal |= captureInDirection(movePosition, NORTH_WEST, NOT_H_FILE);
+
+            // Placer le nouveau pion et retourner les pions capturés
+            if (currentPlayer === BLACK) {
+                blackDiscs |= movePosition | capturedTotal;
+                whiteDiscs &= ~capturedTotal;
+            } else {
+                whiteDiscs |= movePosition | capturedTotal;
+                blackDiscs &= ~capturedTotal;
+            }
+
+            return true;
+        }
+
+        // Passer le tour au joueur suivant
+        function switchPlayer() {
+            currentPlayer = getOpponent(currentPlayer);
+            updateValidMoves();
+
+            // Si le joueur n'a pas de coups valides, essayer de passer au joueur suivant
+            if (validMoves === 0n) {
+                currentPlayer = getOpponent(currentPlayer);
+                updateValidMoves();
+
+                // Si aucun joueur n'a de coups valides, la partie est terminée
+                if (validMoves === 0n) {
+                    endGame();
+                    return;
+                }
+
+                document.getElementById('status-message').textContent = `Le joueur ${currentPlayer === BLACK ? 'noir' : 'blanc'} n'a pas de coups possibles. Tour du joueur ${currentPlayer === BLACK ? 'noir' : 'blanc'}.`;
+            } else {
+                document.getElementById('status-message').textContent = `Tour du joueur ${currentPlayer === BLACK ? 'noir' : 'blanc'}`;
+            }
+
+            // Déclencher le tour de l'IA si c'est son tour
+            if (aiEnabled && currentPlayer === aiPlayer) {
+                setTimeout(makeAIMove, 100);
+            }
+        }
+
+        // Mettre fin à la partie
+        function endGame() {
+            const blackCount = countBits(blackDiscs);
+            const whiteCount = countBits(whiteDiscs);
+            console.log(blackCount, whiteCount);
+            let message;
+            if (blackCount > whiteCount) {
+                message = `Partie terminée. Le joueur noir gagne ${blackCount} à ${whiteCount}!`;
+            } else if (whiteCount > blackCount) {
+                message = `Partie terminée. Le joueur blanc gagne ${whiteCount} à ${blackCount}!`;
+            } else {
+                message = `Partie terminée. Match nul ${blackCount} à ${whiteCount}!`;
+            }
+
+            document.getElementById('status-message').textContent = message;
+        }
+
+        // Compter le nombre de bits à 1 dans un bitboard
+        function countBits(bitboard) {
+            let count = 0;
+            let tempBoard = bitboard;
+
+            while (tempBoard > 0n) {
+                if (tempBoard & 1n) count++;
+                tempBoard >>= 1n;
+            }
+
+            return count;
+        }
+
+        // Mettre à jour l'affichage de l'état du jeu
+        function updateStatus() {
+            const blackCount = countBits(blackDiscs);
+            const whiteCount = countBits(whiteDiscs);
+
+            document.getElementById('black-count').textContent = blackCount;
+            document.getElementById('white-count').textContent = whiteCount;
+
+            document.getElementById('status-message').textContent = `Tour du joueur ${currentPlayer === BLACK ? 'noir' : 'blanc'}`;
+
+            // Mettre en surbrillance le joueur actuel
+            document.querySelector('.black-player').classList.toggle('current-player', currentPlayer === BLACK);
+            document.querySelector('.white-player').classList.toggle('current-player', currentPlayer === WHITE);
+        }
+
+        // Afficher le plateau de jeu
+        function renderBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+
+            for (let pos = 0; pos < 64; pos++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.pos = pos;
+
+                cell.addEventListener('click', () => {
+                    handleCellClick(pos);
+                });
+
+                // Ajouter un pion si nécessaire
+                const piece = getPiece(pos);
+                if (piece !== EMPTY) {
+                    const disc = document.createElement('div');
+                    disc.className = `disc ${piece === BLACK ? 'black' : 'white'}`;
+                    cell.appendChild(disc);
+                }
+
+                // Marquer les coups valides
+                if (isValidMove(pos)) {
+                    cell.classList.add('valid-move');
+                }
+
+                boardElement.appendChild(cell);
+            }
+
+            updateStatus();
+        }
+
+        // Gérer le clic sur une cellule
+        function handleCellClick(pos) {
+            if (isValidMove(pos) && !(aiEnabled && currentPlayer === aiPlayer)) {
+                makeMove(pos);
+                switchPlayer();
+                renderBoard();
+            }
+        }
+
+        // Récupérer tous les coups légaux sous forme de liste de bits
+        function getMoves() {
+            const moves = [];
+            let tempMoves = validMoves;
+            while (tempMoves !== 0n) {
+                const lsb = tempMoves & -tempMoves; // Récupérer le bit le moins significatif
+                moves.push(lsb);
+                tempMoves &= ~lsb; // Supprimer ce bit
+            }
+            return moves;
+        }
+
+        // Évaluation rapide et optimisée de la position
+        function evaluateBoard() {
+            // Phase de jeu (début, milieu, fin)
+            const totalDiscs = countBits(blackDiscs | whiteDiscs);
+            const isEarlyGame = totalDiscs < 20;
+            const isEndGame = totalDiscs > 50;
+
+            // Points de matériel (nombre de pièces)
+            const blackCount = countBits(blackDiscs);
+            const whiteCount = countBits(whiteDiscs);
+            const materialScore = blackCount - whiteCount;
+
+            // Points de mobilité (nombre de coups légaux)
+            const playerBackup = currentPlayer;
+
+            // Vérifier les coins possibles au prochain coup
+            currentPlayer = BLACK;
+            updateValidMoves();
+            const blackMobility = countBits(validMoves);
+            const blackCanTakeCorner = (validMoves & CORNER_MASK) !== 0n;
+
+            currentPlayer = WHITE;
+            updateValidMoves();
+            const whiteMobility = countBits(validMoves);
+            const whiteCanTakeCorner = (validMoves & CORNER_MASK) !== 0n;
+
+            // Restaurer le joueur actuel
+            currentPlayer = playerBackup;
+            updateValidMoves();
+
+            const mobilityScore = blackMobility - whiteMobility;
+
+            // Menace de coin (pénalité pour permettre à l'adversaire de prendre un coin)
+            const cornerThreatScore = (blackCanTakeCorner ? -200 : 0) + (whiteCanTakeCorner ? 200 : 0);
+
+            // Points stratégiques
+            const blackCorners = countBits(blackDiscs & CORNER_MASK);
+            const whiteCorners = countBits(whiteDiscs & CORNER_MASK);
+            const cornerScore = (blackCorners - whiteCorners) * 300;
+
+            const blackEdges = countBits(blackDiscs & EDGE_MASK);
+            const whiteEdges = countBits(whiteDiscs & EDGE_MASK);
+            const edgeScore = (blackEdges - whiteEdges) * 20;
+
+            // Évaluer les cases X (adjacentes aux coins)
+            let xSquaresScore = 0;
+            // Pour chaque coin, vérifier s'il est occupé
+            const corners = [0, 7, 56, 63];
+            const xSquaresByCorner = [
+                [1, 8, 9], // Coin 0
+                [6, 14, 15], // Coin 7
+                [48, 49, 57], // Coin 56
+                [54, 55, 62]  // Coin 63
+            ];
+
+            for (let i = 0; i < corners.length; i++) {
+                const cornerPos = corners[i];
+                const cornerOwner = getPiece(cornerPos);
+
+                // Si le coin est vide, pénaliser les cases X adjacentes
+                if (cornerOwner === EMPTY) {
+                    for (const xPos of xSquaresByCorner[i]) {
+                        if (getPiece(xPos) === BLACK) xSquaresScore -= 30;
+                        else if (getPiece(xPos) === WHITE) xSquaresScore += 30;
+                    }
+                }
+                // Si le coin est pris, les cases X adjacentes deviennent bonnes
+                else {
+                    for (const xPos of xSquaresByCorner[i]) {
+                        if (cornerOwner === BLACK) {
+                            if (getPiece(xPos) === BLACK) xSquaresScore += 10;
+                            else if (getPiece(xPos) === WHITE) xSquaresScore -= 5;
+                        } else { // WHITE
+                            if (getPiece(xPos) === BLACK) xSquaresScore -= 5;
+                            else if (getPiece(xPos) === WHITE) xSquaresScore += 10;
+                        }
+                    }
+                }
+            }
+
+            // Points de position (basés sur les poids)
+            let positionalScore = 0;
+            for (let i = 0; i < 64; i++) {
+                const bit = 1n << BigInt(i);
+                if ((blackDiscs & bit) !== 0n) {
+                    positionalScore += POSITION_WEIGHTS[i];
+                } else if ((whiteDiscs & bit) !== 0n) {
+                    positionalScore -= POSITION_WEIGHTS[i];
+                }
+            }
+
+            // Ajustements de poids selon la phase de jeu
+            let finalScore;
+            if (isEarlyGame) {
+                // Début de partie: priorité aux coins, mobilité et éviter de donner accès aux coins
+                finalScore =
+                    mobilityScore * 20 +
+                    cornerScore +
+                    cornerThreatScore * 2 +
+                    edgeScore +
+                    xSquaresScore +
+                    positionalScore * 2;
+            } else if (isEndGame) {
+                // Fin de partie: priorité au matériel et aux coins
+                finalScore =
+                    materialScore * 15 +
+                    cornerScore +
+                    edgeScore +
+                    positionalScore;
+            } else {
+                // Milieu de partie: équilibre mais toujours priorité aux coins
+                finalScore =
+                    materialScore * 5 +
+                    mobilityScore * 10 +
+                    cornerScore +
+                    cornerThreatScore +
+                    edgeScore +
+                    xSquaresScore +
+                    positionalScore;
+            }
+
+            return currentPlayer === BLACK ? finalScore : -finalScore;
+        }
+
+        // Attribuer un score à un coup pour l'ordonnancement
+        function scoreMove(move) {
+            // Vérifier si le mouvement prend un coin
+            if ((move & CORNER_MASK) !== 0n) return 10000;
+
+            // Position du coup
+            const {pos} = bitToCoords(move);
+
+            // Vérifier si ce coup donne accès à un coin à l'adversaire
+            const originalPlayer = currentPlayer;
+            const blackBackup = blackDiscs;
+            const whiteBackup = whiteDiscs;
+
+            // Simuler le coup
+            makeMove(pos);
+
+            // Changer de joueur et vérifier s'il peut prendre un coin
+            currentPlayer = getOpponent(currentPlayer);
+            updateValidMoves();
+            const givesCornerAccess = (validMoves & CORNER_MASK) !== 0n;
+
+            // Restaurer l'état
+            blackDiscs = blackBackup;
+            whiteDiscs = whiteBackup;
+            currentPlayer = originalPlayer;
+            updateValidMoves();
+
+            // Fortement pénaliser les mouvements qui donnent accès à un coin
+            if (givesCornerAccess) return -5000;
+
+            // Cases X (adjacentes aux coins): très bas sauf si les coins sont déjà pris
+            if ((move & X_SQUARES_MASK) !== 0n) {
+                const {row, col} = posToRowCol(pos);
+                let cornerPos;
+
+                if (row < 2) {
+                    cornerPos = col < 2 ? 0 : 7;
+                } else {
+                    cornerPos = col < 2 ? 56 : 63;
+                }
+
+                // Si le coin est vide, c'est très mauvais de jouer à côté
+                if (getPiece(cornerPos) === EMPTY) {
+                    return -500;
+                }
+            }
+
+            // Bords: bonne valeur
+            if ((move & EDGE_MASK) !== 0n) return 100;
+
+            // Score basé sur la position
+            return POSITION_WEIGHTS[pos];
+        }
+
+        // Analyse améliorée des menaces de coin
+        function analyzeMoveRisk(move) {
+            const {pos} = bitToCoords(move);
+
+            // État avant le coup
+            const blackBackup = blackDiscs;
+            const whiteBackup = whiteDiscs;
+            const playerBackup = currentPlayer;
+
+            // Simuler le coup
+            makeMove(pos);
+            currentPlayer = getOpponent(currentPlayer);
+            updateValidMoves();
+
+            let risk = 0;
+
+            // Vérifier si l'adversaire peut prendre un coin immédiatement
+            if ((validMoves & CORNER_MASK) !== 0n) {
+                risk = 3; // Risque élevé: donne directement accès à un coin
+            } else {
+                // Simuler tous les coups de l'adversaire
+                const opponentMoves = getMoves();
+
+                for (const opMove of opponentMoves) {
+                    const {pos: opPos} = bitToCoords(opMove);
+
+                    // État avant le coup de l'adversaire
+                    const blackBackup2 = blackDiscs;
+                    const whiteBackup2 = whiteDiscs;
+                    const playerBackup2 = currentPlayer;
+
+                    // Simuler le coup de l'adversaire
+                    makeMove(opPos);
+                    currentPlayer = getOpponent(currentPlayer);
+                    updateValidMoves();
+
+                    // Vérifier si nous pouvons prendre un coin
+                    if ((validMoves & CORNER_MASK) !== 0n) {
+                        risk = Math.max(risk, 1); // Risque faible: coup qui pourrait ouvrir un accès à un coin
+                    }
+
+                    // Mais aussi, vérifier si nous n'avons aucun bon coup à jouer (situation forcée)
+                    if (validMoves !== 0n) {
+                        // Compter combien de nos coups possibles donnent accès à un coin
+                        let dangerousCounter = 0;
+                        let totalMoves = 0;
+
+                        const ourMoves = getMoves();
+                        for (const ourMove of ourMoves) {
+                            totalMoves++;
+
+                            // État avant notre contre-coup
+                            const blackBackup3 = blackDiscs;
+                            const whiteBackup3 = whiteDiscs;
+                            const playerBackup3 = currentPlayer;
+
+                            // Simuler notre contre-coup
+                            const {pos: ourPos} = bitToCoords(ourMove);
+                            makeMove(ourPos);
+                            currentPlayer = getOpponent(currentPlayer);
+                            updateValidMoves();
+
+                            // L'adversaire peut-il maintenant prendre un coin?
+                            if ((validMoves & CORNER_MASK) !== 0n) {
+                                dangerousCounter++;
+                            }
+
+                            // Restaurer l'état
+                            blackDiscs = blackBackup3;
+                            whiteDiscs = whiteBackup3;
+                            currentPlayer = playerBackup3;
+                            updateValidMoves();
+                        }
+
+                        // Si TOUS nos coups possibles sont dangereux, c'est un risque de niveau 2
+                        if (dangerousCounter === totalMoves && totalMoves > 0) {
+                            risk = Math.max(risk, 2); // Risque moyen: nous force dans une position où on doit donner un coin
+                        }
+                    }
+
+                    // Restaurer l'état après le coup de l'adversaire
+                    blackDiscs = blackBackup2;
+                    whiteDiscs = whiteBackup2;
+                    currentPlayer = playerBackup2;
+                    updateValidMoves();
+                }
+            }
+
+            // Restaurer l'état initial
+            blackDiscs = blackBackup;
+            whiteDiscs = whiteBackup;
+            currentPlayer = playerBackup;
+            updateValidMoves();
+
+            return risk;
+        }
+
+        // Minimax avec élagage alpha-beta
+        function minimax(depth, alpha, beta, maximizing) {
+            // Vérifier dans la table de transposition
+            const key = (blackDiscs * 31n) ^ (whiteDiscs * 37n) ^ (currentPlayer === BLACK ? 1n : 0n);
+            const entry = transpositionTable.get(key);
+
+            if (entry && entry.depth >= depth) {
+                return entry.value;
+            }
+
+            // Si on atteint la profondeur maximale, évaluer
+            if (depth === 0) {
+                const value = evaluateBoard();
+                transpositionTable.set(key, { value, depth });
+                return value;
+            }
+
+            // Si aucun coup n'est valide, passer ou terminer
+            if (validMoves === 0n) {
+                const playerBackup = currentPlayer;
+                currentPlayer = getOpponent(currentPlayer);
+                updateValidMoves();
+
+                // Si l'adversaire n'a pas de coups non plus, la partie est terminée
+                if (validMoves === 0n) {
+                    currentPlayer = playerBackup;
+                    updateValidMoves();
+
+                    const blackCount = countBits(blackDiscs);
+                    const whiteCount = countBits(whiteDiscs);
+
+                    if (blackCount > whiteCount) {
+                        return playerBackup === BLACK ? 10000 : -10000;
+                    } else if (whiteCount > blackCount) {
+                        return playerBackup === WHITE ? 10000 : -10000;
+                    } else {
+                        return 0; // Match nul
+                    }
+                }
+
+                // Sinon, continuer la recherche avec le joueur qui passe
+                const score = -minimax(depth - 1, -beta, -alpha, !maximizing);
+
+                // Restaurer l'état
+                currentPlayer = playerBackup;
+                updateValidMoves();
+
+                return score;
+            }
+
+            // Obtenir tous les coups valides
+            const moves = getMoves();
+
+            // Trier les coups pour un meilleur élagage alpha-beta
+            moves.sort((a, b) => scoreMove(b) - scoreMove(a));
+
+            let bestValue = maximizing ? -Infinity : Infinity;
+
+            for (const move of moves) {
+                // Sauvegarde de l'état
+                const blackBackup = blackDiscs;
+                const whiteBackup = whiteDiscs;
+                const playerBackup = currentPlayer;
+
+                // Faire le coup
+                const {pos} = bitToCoords(move);
+                makeMove(pos);
+                currentPlayer = getOpponent(currentPlayer);
+                updateValidMoves();
+
+                // Recherche récursive
+                const score = -minimax(depth - 1, -beta, -alpha, !maximizing);
+
+                // Restaurer l'état
+                blackDiscs = blackBackup;
+                whiteDiscs = whiteBackup;
+                currentPlayer = playerBackup;
+                updateValidMoves();
+
+                if (maximizing) {
+                    bestValue = Math.max(bestValue, score);
+                    alpha = Math.max(alpha, bestValue);
+                } else {
+                    bestValue = Math.min(bestValue, score);
+                    beta = Math.min(beta, bestValue);
+                }
+
+                if (beta <= alpha) {
+                    break;
+                }
+            }
+
+            // Stocker dans la table de transposition
+            transpositionTable.set(key, { value: bestValue, depth });
+
+            return bestValue;
+        }
+
+        // Trouver le meilleur coup avec approfondissement itératif et protection des coins
+        function findBestMove(maxDepth) {
+            const startTime = performance.now();
+            let bestMove = null;
+            let bestScore = -Infinity;
+
+            const moves = getMoves();
+            if (moves.length === 0) return null;
+
+            // Vérifier d'abord si on peut prendre un coin
+            for (const move of moves) {
+                if ((move & CORNER_MASK) !== 0n) {
+                    console.log("Coin disponible, le prenant immédiatement");
+                    return move; // Toujours prendre un coin si disponible
+                }
+            }
+
+            // Analyse plus approfondie des dangers pour les coins
+            const dangerMap = new Map(); // Carte pour stocker le niveau de risque de chaque mouvement
+
+            for (const move of moves) {
+                // Analyse des risques à court et moyen terme
+                const riskLevel = analyzeMoveRisk(move);
+                dangerMap.set(move.toString(), riskLevel);
+
+                // Si nous avons moins de 3 mouvements possibles, ne pas être trop sélectif
+                if (riskLevel >= 3 && moves.length > 2) {
+                    console.log(`Mouvement ${bitToCoords(move).pos} ignoré - donne directement accès à un coin`);
+                }
+            }
+
+            // Stratégie à deux niveaux: d'abord essayer seulement les mouvements sûrs
+            const safeMoves = moves.filter(move => dangerMap.get(move.toString()) < 2);
+            const movesToSearch = safeMoves.length > 0 ? safeMoves : moves;
+
+            // Augmenter la profondeur pour les positions critiques
+            const effectiveMaxDepth = Math.min(maxDepth + 2, 10); // Limiter à 10 pour éviter les temps de calcul trop longs
+
+            // Approfondissement itératif
+            for (let depth = 1; depth <= effectiveMaxDepth; depth++) {
+                let tempBestMove = null;
+                let tempBestScore = -Infinity;
+
+                // Trier les mouvements pour une meilleure efficacité
+                movesToSearch.sort((a, b) => {
+                    // Priorité absolue aux coins
+                    const aIsCorner = (a & CORNER_MASK) !== 0n;
+                    const bIsCorner = (b & CORNER_MASK) !== 0n;
+                    if (aIsCorner && !bIsCorner) return -1;
+                    if (!aIsCorner && bIsCorner) return 1;
+
+                    // Ensuite, éviter les mouvements dangereux
+                    const aRisk = dangerMap.get(a.toString()) || 0;
+                    const bRisk = dangerMap.get(b.toString()) || 0;
+                    if (aRisk < bRisk) return -1;
+                    if (aRisk > bRisk) return 1;
+
+                    // Finalement, comparer les scores de mouvement
+                    return scoreMove(b) - scoreMove(a);
+                });
+
+                // Si on est déjà dans la phase d'endgame, augmenter la profondeur
+                const totalDiscs = countBits(blackDiscs | whiteDiscs);
+                const isEndgame = totalDiscs > 50;
+                const searchDepth = isEndgame ? depth + 1 : depth;
+
+                for (const move of movesToSearch) {
+                    // Éviter les mouvements à haut risque sauf si c'est la seule option
+                    const risk = dangerMap.get(move.toString()) || 0;
+                    if (risk >= 3 && movesToSearch.length > 1) continue;
+
+                    // Sauvegarde de l'état
+                    const blackBackup = blackDiscs;
+                    const whiteBackup = whiteDiscs;
+                    const playerBackup = currentPlayer;
+
+                    // Faire le coup
+                    const {pos} = bitToCoords(move);
+                    makeMove(pos);
+                    currentPlayer = getOpponent(currentPlayer);
+                    updateValidMoves();
+
+                    // Recherche plus profonde pour les coins et positions critiques
+                    let effectiveDepth = searchDepth;
+                    if ((move & CORNER_MASK) !== 0n) effectiveDepth += 2;
+                    if ((move & EDGE_MASK) !== 0n) effectiveDepth += 1;
+
+                    // Utiliser une fenêtre alpha-beta de plus en plus étroite
+                    let alpha = tempBestScore;
+                    const beta = Infinity;
+
+                    // Recherche récursive
+                    const score = -minimax(effectiveDepth - 1, -beta, -alpha, false);
+
+                    // Restaurer l'état
+                    blackDiscs = blackBackup;
+                    whiteDiscs = whiteBackup;
+                    currentPlayer = playerBackup;
+                    updateValidMoves();
+
+                    if (score > tempBestScore) {
+                        tempBestScore = score;
+                        tempBestMove = move;
+                        console.log(`Nouveau meilleur coup: ${pos} avec score ${score} à profondeur ${effectiveDepth}`);
+                    }
+                }
+
+                // Mettre à jour le meilleur coup si une solution a été trouvée
+                if (tempBestMove !== null) {
+                    bestMove = tempBestMove;
+                    bestScore = tempBestScore;
+                }
+
+                // Vérifier si on a suffisamment de temps pour continuer
+                const currentTime = performance.now();
+                const timeElapsed = currentTime - startTime;
+                // Limiter le temps de réflexion en fonction du niveau de difficulté
+                const timeLimit = Math.min(2000 + (maxDepth - 2) * 500, 5000);
+
+                if (timeElapsed > timeLimit && depth >= Math.min(3, maxDepth)) {
+                    console.log(`Arrêt à la profondeur ${depth} après ${timeElapsed.toFixed(2)}ms`);
+                    break;
+                }
+            }
+
+            // Si aucun mouvement "sûr" n'a été trouvé mais qu'il existe des mouvements
+            if (bestMove === null && moves.length > 0) {
+                console.log("Aucun mouvement sûr trouvé, choix du moins risqué");
+                // Trier par risque croissant puis par score décroissant
+                moves.sort((a, b) => {
+                    const aRisk = dangerMap.get(a.toString()) || 0;
+                    const bRisk = dangerMap.get(b.toString()) || 0;
+                    if (aRisk !== bRisk) return aRisk - bRisk;
+                    return scoreMove(b) - scoreMove(a);
+                });
+                bestMove = moves[0];
+            }
+
+            currentThinkingTime = performance.now() - startTime;
+            console.log(`L'IA a réfléchi pendant ${currentThinkingTime.toFixed(2)}ms, score final: ${bestScore}`);
+
+            if (bestMove) {
+                const {pos} = bitToCoords(bestMove);
+                console.log(`Coup choisi: ${pos}`);
+            }
+
+            return bestMove;
+        }
+
+        // Faire jouer l'IA
+        function makeAIMove() {
+            if (!aiEnabled || currentPlayer !== aiPlayer) return;
+
+            document.getElementById('status-message').textContent = "L'IA réfléchit...";
+
+            setTimeout(() => {
+                const bestMove = findBestMove(aiDepth);
+
+                if (bestMove !== null) {
+                    const {pos} = bitToCoords(bestMove);
+                    makeMove(pos);
+                    switchPlayer();
+                    renderBoard();
+                }
+            }, 50);
+        }
+
+        // Événements UI
+        document.getElementById('ai-toggle').addEventListener('change', function() {
+            aiEnabled = this.checked;
+            if (aiEnabled && currentPlayer === aiPlayer) {
+                makeAIMove();
+            }
+        });
+
+        document.getElementById('ai-depth').addEventListener('change', function() {
+            aiDepth = parseInt(this.value);
+        });
+
+        document.getElementById('ai-color').addEventListener('change', function() {
+            aiPlayer = this.value === 'black' ? BLACK : WHITE;
+            if (aiEnabled && currentPlayer === aiPlayer) {
+                makeAIMove();
+            }
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            initGame();
+        });
+
+        // Initialiser le jeu
+        initGame();
+    </script>
+</body>
+</html>
