@@ -14,14 +14,16 @@ function bitPositions(bitboard) {
   let positions = [];
   while (bitboard) {
       let bit = bitboard & -bitboard;
-      let shift = Number((bit * deBruijn64) >> 58n & 63n);
+      let shift = Number(bit * deBruijn64 >> 58n & 63n);
       let index = index64[shift];
       positions.push(index);
       bitboard ^= bit;
   }
   return positions;
 }
-
-
-let board = 0b1111111111111111000000000000000000000000000000000000000000000000n;
-console.log(bitPositions(board));
+console.time("bitPositions");
+let board1 = 0b1010101010101010101010101010101010101010101010101010101010101010n;
+console.log(bitPositions(board1));
+let board2 = 0b0101010101010101010101010101010101010101010101010101010101010101n;
+console.log(bitPositions(board2));
+console.timeEnd("bitPositions");
