@@ -1,0 +1,377 @@
+:root {
+  --primary-color: #4cac40;
+  --primary-dark: #48a024;
+  --board-bg: #333;
+  --cell-bg: #1a8b4c;
+  --text-color: #333;
+  --hint-color: rgba(255, 255, 255, 0.2);
+  --modal-bg: rgba(0, 0, 0, 0.8);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Verdana', 'Arial', sans-serif;
+  color: var(--text-color);
+  min-width: 400px;
+  margin: 0 auto;
+  padding: 8px;
+  background-color: #f5f5f5;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 16px;
+  color: var(--primary-color);
+}
+
+a {
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: var(--primary-color);
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 24px;
+}
+
+a:visited {
+  color: white;
+}
+
+.othello-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.board-container {
+  position: relative;
+}
+
+#othello-board {
+  display: grid;
+  grid-template-columns: repeat(8, min(11dvw, 11dvh));
+  gap: 2px;
+  background-color: var(--board-bg);
+  border: 8px solid var(--board-bg);
+  border-radius: 8px;
+}
+
+.othello-cell {
+  width: 100%;
+  aspect-ratio: 1/1;
+  background-color: var(--cell-bg);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.othello-cell.valid-move::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50%;
+  height: 50%;
+  border-radius: 50%;
+  background-color: var(--hint-color);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.5); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.5); }
+}
+
+.othello-cell::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.othello-cell.white::after {
+  background-color: white;
+}
+
+.othello-cell.black::after {
+  background-color: black;
+}
+
+.game-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: calc(min(88vw, 88vh) + 30px);
+}
+
+.score-display {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background-color: white;
+  padding: 8px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  gap: 8px;
+}
+
+.player-score {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 32px;
+  font-weight: bold;
+  border: 4px solid #ccc;
+  border-radius: 8px;
+  gap: 8px;
+  aspect-ratio: 1/1;
+  transition: all 0.2s;
+}
+
+.score-indicator {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.score-indicator.black {
+  background-color: black;
+}
+
+.score-indicator.white {
+  background-color: white;
+  border: 2px solid #ccc;
+}
+
+#othello-status-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  aspect-ratio: 1/1;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  box-shadow: inset 2px 2px 4px #ccc,
+              inset -2px -2px 4px white;
+}
+
+#othello-status {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+.game-actions {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+}
+
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.switch {
+  position: relative;
+  width: 64px;
+  height: 32px;
+}
+
+.switch input {
+  display: none;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .5s;
+  border-radius: 32px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 24px;
+  width: 24px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .5s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--primary-color);
+}
+
+input:checked + .slider:before {
+  transform: translateX(32px);
+}
+
+button {
+  padding: 8px 16px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 40px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: var(--primary-dark);
+}
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--modal-bg);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+.modal-content {
+  text-align: center;
+  background-color: white;
+  padding: 32px;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  animation: modalFadeIn 0.3s;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-64px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  color: var(--primary-color);
+}
+
+.modal-body {
+  margin-bottom: 32px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+.option-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.option-card {
+  flex: 1;
+  min-width: 80px;
+  padding: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-card:hover {
+  border-color: var(--primary-color);
+}
+
+.difficulty-card {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.difficulty-card:hover {
+  border-color: var(--primary-color);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.selected{
+  background-color: rgba(76, 175, 80, 0.1);
+  border-color: var(--primary-color);
+}
+
+@media (orientation: landscape) {
+  h1 {
+    display: none;
+  }
+
+  .othello-game {
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+  }
+
+  .game-info {
+    width: 64dvh;
+  }
+
+  .score-display {
+    grid-template-columns: none;
+    grid-template-rows: auto auto auto;
+  }
+
+  .player-score {
+    aspect-ratio: 16/5;
+  }
+
+  #othello-status-container {
+    aspect-ratio: 16/9;
+  }
+
+  .switch + span {
+    display: none;
+  }
+}
