@@ -3,7 +3,7 @@ import othelloCore from './othelloCore.js';
 const othelloController = (() => {
   let gameState = {};
   let humanPlayer = 1;
-  let aiPlayer = -1;
+  let aiPlayer = humanPlayer === 1 ? 2n : 1n;
 
   function init() {
     gameState = othelloCore.createNewGame();
@@ -13,20 +13,34 @@ const othelloController = (() => {
   function startNewGame(firstPlayer) {
     gameState = othelloCore.createNewGame();
     humanPlayer = firstPlayer === 'human' ? 1 : -1;
-    aiPlayer = -humanPlayer;
+    aiPlayer = humanPlayer === 1 ? 2n : 1n;
     return getFullGameState();
   };
 
   function handleMove(pos) {
-    if (gameState.currentPlayer !== humanPlayer) return;
+    console.log("handleMove called with position:", pos);
+    if (gameState.currentPlayer !== BigInt(humanPlayer)) {
+      console.log("Not the human player's turn. Current player:", gameState.currentPlayer);
+      return;
+    }
     const newState = othelloCore.makeMove(gameState, pos);
-    if (newState === gameState) return;
+    if (newState === gameState) {
+      console.log("Invalid move. Game state did not change.");
+      return;
+    }
+    console.log("Move successful. Updating game state.");
     gameState = newState;
     return getFullGameState();
   };
 
   function makeAIMove(config) {
     const move = othelloCore.findBestMove(gameState, config.difficulty);
+    if (!move) {
+      console.log("AI could not find a valid move. Passing turn to human.");
+      gameState.currentPlayer = BigInt(humanPlayer); // Pass turn back to human
+      return getFullGameState();
+    }
+    console.log("AI is making a move at position:", move);
     if (move) {
       const pos = move;
       gameState = othelloCore.makeMove(gameState, pos);
@@ -41,12 +55,13 @@ const othelloController = (() => {
       if (blackDiscs & (1n << BigInt(i))) board[i] = 1;
       else if (whiteDiscs & (1n << BigInt(i))) board[i] = -1;
     };
+    console.log("getFullGameState: currentPlayer:", player, "aiPlayer:", aiPlayer, "aiShouldPlay:", player === BigInt(aiPlayer));
     return {
       board,
       currentPlayer: player,
       validMoves: othelloCore.getAllValidMoves(gameState), // Pass gameState directly to ensure BigInt compatibility
       ...othelloCore.countPieces(gameState), // Pass gameState directly for consistency
-      aiShouldPlay: player === aiPlayer,
+      aiShouldPlay: player === BigInt(aiPlayer),
       message: getStatusMessage()
     };
   };
