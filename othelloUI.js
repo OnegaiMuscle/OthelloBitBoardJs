@@ -90,6 +90,7 @@ const othelloUI = (() => {
     });
   };
 
+  
   function refreshUI(gameState) {
     const {
       board,
