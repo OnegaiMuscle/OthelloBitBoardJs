@@ -44,22 +44,17 @@ const othelloCore = (() => {
   const transpositionTable = new Map();
 
   function createNewGame() {
-    // Initialize with standard Othello starting position
     let blackDiscs = 0n;
     let whiteDiscs = 0n;
-
-    // Set initial 4 pieces in the center
     blackDiscs |= (1n << 28n) | (1n << 35n);
     whiteDiscs |= (1n << 27n) | (1n << 36n);
-
     return {
       blackDiscs,
       whiteDiscs,
       currentPlayer: BLACK
     };
-  }
+  };
 
-  // Ensure all operations in the shift function handle BigInt properly
   function shift(bitboard, direction) {
     // Apply edge masks based on the direction to prevent wrapping
     switch (String(direction)) {
@@ -233,6 +228,35 @@ const othelloCore = (() => {
       currentPlayer: EMPTY // Game over
     };
   }
+
+  function bitPositions(bitboard) {
+    const deBruijn64 = 0x03f79d71b4cb0a89n;
+    const index64 = [
+      0, 1, 48, 2, 57, 49, 28, 3,
+      61, 58, 50, 42, 38, 29, 17, 4,
+      62, 55, 59, 36, 53, 51, 43, 22,
+      45, 39, 33, 30, 24, 18, 12, 5,
+      63, 47, 56, 27, 60, 41, 37, 16,
+      54, 35, 52, 21, 44, 32, 23, 11,
+      46, 26, 40, 15, 34, 20, 31, 10,
+      25, 14, 19, 9, 13, 8, 7, 6
+    ];
+
+    let positions = [];
+    while (bitboard) {
+        let bit = bitboard & -bitboard;
+        let shift = Number(bit * deBruijn64 >> 58n & 63n);
+        let index = index64[shift];
+        positions.push(index);
+        bitboard ^= bit;
+    }
+    return positions;
+  }
+
+
+
+
+
 
   // Get all valid moves as position indices
   function getAllValidMoves(gameState) {
