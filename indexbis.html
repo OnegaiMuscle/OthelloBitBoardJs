@@ -299,31 +299,31 @@
             const playerDiscs = getCurrentPlayerDiscs();
             const opponentDiscs = getOpponentDiscs();
             let validMovesBitboard = 0n;
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord-Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud-Est
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Sud-Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             // Nord-Ouest
             validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
-            //console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
+            console.log(...validMovesBitboard.toString(2).padStart(64, '0'));
             return validMovesBitboard;
         }
 

@@ -33,9 +33,9 @@ const othelloCore = (() => {
   ];
 
   const DIFFICULTY_DEPTH_MAP = {
-    noob: 1,
-    easy: 2,
-    medium: 4,
+    noob: 2,
+    easy: 4,
+    medium: 6,
     hard: 8,
     master: 8
   };
@@ -56,64 +56,34 @@ const othelloCore = (() => {
   };
 
   function shift(bitboard, direction) {
-    // Apply edge masks based on the direction to prevent wrapping
-    switch (String(direction)) {
-      case String(EAST):
-        return (bitboard & NOT_H_FILE) << 1n;
-      case String(WEST):
-        return (bitboard & NOT_A_FILE) >> 1n;
-      case String(NORTH):
-        return bitboard >> 8n;
-      case String(SOUTH):
-        return bitboard << 8n;
-      case String(NORTH_EAST):
-        return (bitboard & NOT_H_FILE) >> 7n;
-      case String(NORTH_WEST):
-        return (bitboard & NOT_A_FILE) >> 9n;
-      case String(SOUTH_EAST):
-        return (bitboard & NOT_H_FILE) << 9n;
-      case String(SOUTH_WEST):
-        return (bitboard & NOT_A_FILE) << 7n;
-      default:
-        return 0n;
+    if (direction > 0) {
+        return bitboard << direction;
+    } else {
+        return bitboard >> -direction;
     }
+}
+
+function getValidMovesInDirection(playerDiscs, opponentDiscs, direction, edgeMask) {
+  // Cases adjacentes aux pions du joueur dans la direction, qui contiennent des pions adverses
+  let candidates = shift(playerDiscs, direction) & opponentDiscs & edgeMask;
+  if (candidates === 0n) return 0n;
+
+  // Continuer à chercher des séquences de pions adverses
+  let validPositions = 0n;
+  let temp = candidates;
+
+  // Chercher les cases vides après des pions adverses
+  for (let i = 0; i < 5; i++) {
+      temp = shift(temp, direction) & opponentDiscs & edgeMask;
+      candidates |= temp;
   }
 
-  // Calculate valid moves in one direction
-  function getValidMovesInDirection(playerDiscs, opponentDiscs, direction) {
-    // Determine the appropriate edge mask
-    const edgeMask =
-      (direction === EAST || direction === NORTH_EAST || direction === SOUTH_EAST) ? NOT_A_FILE :
-      (direction === WEST || direction === NORTH_WEST || direction === SOUTH_WEST) ? NOT_H_FILE :
-      0xFFFFFFFFFFFFFFFFn;
+  // Les cases vides après une séquence de pions adverses sont des coups valides
+  temp = shift(candidates, direction) & ~(playerDiscs | opponentDiscs) & edgeMask;
+  validPositions |= temp;
 
-    // Find positions adjacent to player discs where opponent discs are located
-    let adjacent = shift(playerDiscs, direction) & edgeMask;
-    let candidates = adjacent & opponentDiscs;
-
-    if (candidates === 0n) return 0n; // No adjacent opponent discs
-
-    // Continue searching for opponent discs in a line
-    let validPositions = 0n;
-    let frontier = candidates;
-
-    while (frontier !== 0n) {
-      // Advance in the direction
-      frontier = shift(frontier, direction) & edgeMask;
-
-      // Empty positions after opponent discs are valid moves
-      let emptyPositions = frontier & ~(playerDiscs | opponentDiscs);
-      if (emptyPositions !== 0n) {
-        validPositions |= emptyPositions;
-        break;
-      }
-
-      // Continue if more opponent discs are found
-      frontier = frontier & opponentDiscs;
-    }
-
-    return validPositions;
-  }
+  return validPositions;
+}
 
   // Capture pieces in one direction
   function captureInDirection(movePosition, playerDiscs, opponentDiscs, direction) {
@@ -142,31 +112,41 @@ const othelloCore = (() => {
     return 0n; // No capture if no player disc is found
   }
 
-  // Calculate all valid moves for a player
-  function calculateValidMoves(blackDiscs, whiteDiscs, player) {
-    const playerDiscs = player === BLACK ? blackDiscs : whiteDiscs;
-    const opponentDiscs = player === BLACK ? whiteDiscs : blackDiscs;
+  function getCurrentPlayerDiscs() {
+    return currentPlayer === BLACK ? blackDiscs : whiteDiscs;
+}
+
+// Obtenir le bitboard du joueur opposé
+function getOpponentDiscs() {
+    return currentPlayer === BLACK ? whiteDiscs : blackDiscs;
+}
+
+
+
+
+
+  function calculateValidMoves() {
+    const playerDiscs = getCurrentPlayerDiscs();
+    const opponentDiscs = getOpponentDiscs();
     let validMoves = 0n;
-
-    // Check all eight directions
-    for (const direction of DIRECTIONS) {
-      validMoves |= getValidMovesInDirection(playerDiscs, opponentDiscs, direction);
-    }
-
-    console.log("calculateValidMoves: player:", player, "validMoves:", validMoves.toString(2));
-
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
+    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
     return validMoves;
-  }
+}
 
-  // Count the number of set bits in a bitboard (population count)
-  function countBits(bitboard) {
-    let count = 0;
-    while (bitboard) {
-      bitboard &= (bitboard - 1n); // Clear the least significant set bit
-      count++;
-    }
-    return count;
-  }
+  function countBits(n) {
+    n = n - (n >> 1n & 0x5555555555555555n);
+    n = (n & 0x3333333333333333n) + (n >> 2n & 0x3333333333333333n);
+    n = (n + (n >> 4n)) & 0x0F0F0F0F0F0F0F0Fn;
+    n = n * 0x0101010101010101n >> 56n & 255n;
+    return Number(n);
+  }; // Count bits in a bitboard with SWAR algorithm and magic number
 
   // Make a move and return the new game state
   function makeMove(gameState, position) {
@@ -262,26 +242,7 @@ const othelloCore = (() => {
   function getAllValidMoves(gameState) {
     const { blackDiscs, whiteDiscs, currentPlayer } = gameState;
     const validMovesBitboard = calculateValidMoves(blackDiscs, whiteDiscs, currentPlayer);
-
-    const moves = [];
-    let bitboard = validMovesBitboard;
-    while (bitboard !== 0n) {
-      // Using trailing zeros technique that avoids BigInt negation
-      let position = 0;
-      let temp = bitboard;
-
-      // Count trailing zeros (position of least significant 1)
-      while ((temp & 1n) === 0n && position < 64) {
-        temp >>= 1n;
-        position++;
-      }
-
-      moves.push(position);
-      // Clear this bit
-      bitboard &= ~(1n << BigInt(position));
-    }
-
-    return moves;
+    return bitPositions(validMovesBitboard);
   }
 
   // Count pieces for both players
