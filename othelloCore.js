@@ -64,27 +64,30 @@ const othelloCore = (() => {
 }
 
 function getValidMovesInDirection(playerDiscs, opponentDiscs, direction, edgeMask) {
-  // Cases adjacentes aux pions du joueur dans la direction, qui contiennent des pions adverses
   let candidates = shift(playerDiscs, direction) & opponentDiscs & edgeMask;
   if (candidates === 0n) return 0n;
-
-  // Continuer à chercher des séquences de pions adverses
-  let validPositions = 0n;
   let temp = candidates;
-
-  // Chercher les cases vides après des pions adverses
-  for (let i = 0; i < 5; i++) {
-      temp = shift(temp, direction) & opponentDiscs & edgeMask;
-      candidates |= temp;
+  while (temp !== 0n) {
+    temp = shift(temp, direction) & opponentDiscs & edgeMask;
+    candidates |= temp;
   }
-
-  // Les cases vides après une séquence de pions adverses sont des coups valides
-  temp = shift(candidates, direction) & ~(playerDiscs | opponentDiscs) & edgeMask;
-  validPositions |= temp;
-
-  return validPositions;
+  return shift(candidates, direction) & ~(playerDiscs | opponentDiscs) & edgeMask;
 }
 
+function calculateValidMoves(blackDiscs, whiteDiscs, currentPlayer) {
+  const playerDiscs = currentPlayer === BLACK ? blackDiscs : whiteDiscs;
+  const opponentDiscs = currentPlayer === BLACK ? whiteDiscs : blackDiscs;
+  let validMovesBitboard = 0n;
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
+  validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
+  return validMovesBitboard;
+}
   // Capture pieces in one direction
   function captureInDirection(movePosition, playerDiscs, opponentDiscs, direction) {
     let capturedDiscs = 0n;
@@ -112,33 +115,6 @@ function getValidMovesInDirection(playerDiscs, opponentDiscs, direction, edgeMas
     return 0n; // No capture if no player disc is found
   }
 
-  function getCurrentPlayerDiscs() {
-    return currentPlayer === BLACK ? blackDiscs : whiteDiscs;
-}
-
-// Obtenir le bitboard du joueur opposé
-function getOpponentDiscs() {
-    return currentPlayer === BLACK ? whiteDiscs : blackDiscs;
-}
-
-
-
-
-
-  function calculateValidMoves() {
-    const playerDiscs = getCurrentPlayerDiscs();
-    const opponentDiscs = getOpponentDiscs();
-    let validMoves = 0n;
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH, 0xFFFFFFFFFFFFFFFFn);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_EAST, NOT_A_FILE);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, EAST, NOT_A_FILE);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_EAST, NOT_A_FILE);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH, 0xFFFFFFFFFFFFFFFFn);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, SOUTH_WEST, NOT_H_FILE);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, WEST, NOT_H_FILE);
-    validMovesBitboard |= getValidMovesInDirection(playerDiscs, opponentDiscs, NORTH_WEST, NOT_H_FILE);
-    return validMoves;
-}
 
   function countBits(n) {
     n = n - (n >> 1n & 0x5555555555555555n);

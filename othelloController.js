@@ -36,11 +36,9 @@ const othelloController = (() => {
   function makeAIMove(config) {
     const move = othelloCore.findBestMove(gameState, config.difficulty);
     if (!move) {
-      console.log("AI could not find a valid move. Passing turn to human.");
       gameState.currentPlayer = BigInt(humanPlayer); // Pass turn back to human
       return getFullGameState();
     }
-    console.log("AI is making a move at position:", move);
     if (move) {
       const pos = move;
       gameState = othelloCore.makeMove(gameState, pos);
@@ -55,7 +53,6 @@ const othelloController = (() => {
       if (blackDiscs & (1n << BigInt(i))) board[i] = 1;
       else if (whiteDiscs & (1n << BigInt(i))) board[i] = -1;
     };
-    console.log("getFullGameState: currentPlayer:", player, "aiPlayer:", aiPlayer, "aiShouldPlay:", player === BigInt(aiPlayer));
     return {
       board,
       currentPlayer: player,
