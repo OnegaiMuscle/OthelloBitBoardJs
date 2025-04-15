@@ -90,8 +90,16 @@ const othelloUI = (() => {
     });
   };
 
-  
+
   function refreshUI(gameState) {
+      // Vérifier si gameState est défini
+  if (!gameState) {
+    console.error("refreshUI called with undefined gameState");
+    return;
+  }
+
+
+
     const {
       board,
       currentPlayer: player,
@@ -109,8 +117,15 @@ const othelloUI = (() => {
     updateStatus(message);
     if (aiShouldPlay) {
       setTimeout(() => {
-        const gameState = othelloController.makeAIMove(config);
-        requestAnimationFrame(() => refreshUI(gameState));
+        const newGameState = othelloController.makeAIMove(config);
+      // Vérifier si le nouvel état est défini avant de continuer
+      if (newGameState) {
+        requestAnimationFrame(() => refreshUI(newGameState));
+      } else {
+        console.error("AI move returned undefined game state");
+        // Afficher un message approprié
+        updateStatus("La partie est terminée ou un problème est survenu");
+      }
       }, 500);
     };
   };
@@ -120,7 +135,7 @@ const othelloUI = (() => {
       const currentCell = board[pos];
       const cell = elements.cellMap[`${pos}`];
       cell.classList.toggle('black', currentCell === 1);
-      cell.classList.toggle('white', currentCell === -1);
+      cell.classList.toggle('white', currentCell === 2);
     });
   };
 
@@ -131,7 +146,7 @@ const othelloUI = (() => {
 
   function updateCurrentPlayer(player) {
     elements.blackPlayer.classList.toggle('selected', player === 1);
-    elements.whitePlayer.classList.toggle('selected', player === -1);
+    elements.whitePlayer.classList.toggle('selected', player === 2);
   };
 
   function updateValidMoves(validMoves) {
