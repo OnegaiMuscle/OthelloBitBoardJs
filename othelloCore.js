@@ -1,8 +1,8 @@
 const othelloCore = (() => {
-  // Constantes
   const EMPTY = 0n;
   const BLACK = 1n;
   const WHITE = 2n;
+  const NORTH_WEST = -9n;
   const NORTH = -8n;
   const NORTH_EAST = -7n;
   const EAST = 1n;
@@ -10,14 +10,11 @@ const othelloCore = (() => {
   const SOUTH = 8n;
   const SOUTH_WEST = 7n;
   const WEST = -1n;
-  const NORTH_WEST = -9n;
-
-  const DIRECTIONS = [NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST];
-
+  const DIRECTIONS = [NORTH_WEST, NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST];
   const NOT_A_COL = 0xfefefefefefefefen;
   const NOT_H_COL = 0x7f7f7f7f7f7f7f7fn;
-
   const DIRECTION_MASKS = {
+    [NORTH_WEST]: NOT_H_COL,
     [NORTH]: 0xFFFFFFFFFFFFFFFFn,
     [NORTH_EAST]: NOT_A_COL,
     [EAST]: NOT_A_COL,
@@ -25,27 +22,24 @@ const othelloCore = (() => {
     [SOUTH]: 0xFFFFFFFFFFFFFFFFn,
     [SOUTH_WEST]: NOT_H_COL,
     [WEST]: NOT_H_COL,
-    [NORTH_WEST]: NOT_H_COL
   };
-
-  // Poids d'évaluation (tableau 8x8 aplati)
   const WEIGHT_BOARD = [
-    100, -20, 10,  5,  5, 10, -20, 100,
-    -20, -50, -2, -2, -2, -2, -50, -20,
-     10,  -2,  1,  1,  1,  1,  -2,  10,
-      5,  -2,  1,  0,  0,  1,  -2,   5,
-      5,  -2,  1,  0,  0,  1,  -2,   5,
-     10,  -2,  1,  1,  1,  1,  -2,  10,
-    -20, -50, -2, -2, -2, -2, -50, -20,
-    100, -20, 10,  5,  5, 10, -20, 100
+    120, -20, 20,  5,  5, 20, -20, 120,
+    -20, -40, -5, -5, -5, -5, -40, -20,
+     20,  -5, 15,  3,  3, 15,  -5,  20,
+      5,  -5,  3,  3,  3,  3,  -5,   5,
+      5,  -5,  3,  3,  3,  3,  -5,   5,
+     20,  -5, 15,  3,  3, 15,  -5,  20,
+    -20, -40, -5, -5, -5, -5, -40, -20,
+    120, -20, 20,  5,  5, 20, -20, 120
   ];
-
   const DIFFICULTY_DEPTH_MAP = {
     noob: 1,
     easy: 2,
-    medium: 4,
-    hard: 6,
-    master: 6
+    medium: 3,
+    hard: 4,
+    pro: 5,
+    expert: 6
   };
 
   // Utilité pour déboguer
@@ -54,23 +48,33 @@ const othelloCore = (() => {
     if (DEBUG) console.log(...args);
   }
 
-  // Fonctions de base pour la manipulation des bitboards
   function shift(bitboard, direction) {
     return direction > 0 ? bitboard << direction : bitboard >> -direction;
-  }
+  };
 
   function countBits(n) {
-    if (n === undefined || n === null) return 0;
     n = n - (n >> 1n & 0x5555555555555555n);
     n = (n & 0x3333333333333333n) + (n >> 2n & 0x3333333333333333n);
     n = (n + (n >> 4n)) & 0x0F0F0F0F0F0F0F0Fn;
     n = n * 0x0101010101010101n >> 56n & 255n;
     return Number(n);
+  };
+
+  function countPieces(gameState) {
+    if (!gameState) {
+      log("Erreur: gameState est undefined dans countPieces");
+      return { blackCount: 0, whiteCount: 0 };
+    }
+
+    const { blackDiscs, whiteDiscs } = gameState;
+    return {
+      blackCount: countBits(blackDiscs),
+      whiteCount: countBits(whiteDiscs)
+    };
   }
 
-  function bitPositions(bitboard) {
-    if (!bitboard) return [];
 
+  function bitPositions(bitboard) {
     const deBruijn64 = 0x03f79d71b4cb0a89n;
     const index64 = [
       0,   1, 48,  2, 57, 49, 28,  3,
@@ -82,20 +86,24 @@ const othelloCore = (() => {
       46, 26, 40, 15, 34, 20, 31, 10,
       25, 14, 19,  9, 13,  8,  7,  6
     ];
-
     let positions = [];
-    let bb = bitboard;
-    while (bb) {
-        let bit = bb & -bb;
+    while (bitboard) {
+        let bit = bitboard & -bitboard;
         let shift = Number(bit * deBruijn64 >> 58n & 63n);
         let index = index64[shift];
         positions.push(index);
-        bb ^= bit;
-    }
+        bitboard ^= bit;
+    };
     return positions;
-  }
+  };
 
-  // Création d'un nouveau jeu
+  function getPlayerAndOpponentDiscs(blackDiscs, whiteDiscs, currentPlayer) {
+    return {
+      playerDiscs: currentPlayer === BLACK ? blackDiscs : whiteDiscs,
+      opponentDiscs: currentPlayer === BLACK ? whiteDiscs : blackDiscs
+    };
+  };
+
   function createNewGame() {
     let blackDiscs = (1n << 28n) | (1n << 35n);
     let whiteDiscs = (1n << 27n) | (1n << 36n);
@@ -104,34 +112,21 @@ const othelloCore = (() => {
       whiteDiscs,
       currentPlayer: BLACK
     };
-  }
+  };
 
-  // Calcul des coups valides
   function getValidMovesInDirection(playerDiscs, opponentDiscs, direction, edgeMask) {
-    // Trouver les pions adverses adjacents aux pions du joueur
     let candidates = shift(playerDiscs, direction) & opponentDiscs & edgeMask;
     if (candidates === 0n) return 0n;
-
-    // Étendre la recherche tant qu'on trouve des pions adverses contigus
     let temp = candidates;
     while (temp !== 0n) {
       temp = shift(temp, direction) & opponentDiscs & edgeMask;
       candidates |= temp;
-    }
-
-    // Les cases vides après des séquences de pions adverses sont des coups valides
+    };
     return shift(candidates, direction) & ~(playerDiscs | opponentDiscs) & edgeMask;
-  }
+  };
 
   function calculateValidMoves(blackDiscs, whiteDiscs, currentPlayer) {
-    if (blackDiscs === undefined || whiteDiscs === undefined || currentPlayer === undefined) {
-      log("Erreur: paramètres invalides dans calculateValidMoves");
-      return 0n;
-    }
-
-    const playerDiscs = currentPlayer === BLACK ? blackDiscs : whiteDiscs;
-    const opponentDiscs = currentPlayer === BLACK ? whiteDiscs : blackDiscs;
-
+    const { playerDiscs, opponentDiscs } = getPlayerAndOpponentDiscs(blackDiscs, whiteDiscs, currentPlayer);
     return DIRECTIONS.reduce((validMovesBitboard, direction) =>
       validMovesBitboard | getValidMovesInDirection(
         playerDiscs,
@@ -139,7 +134,7 @@ const othelloCore = (() => {
         direction,
         DIRECTION_MASKS[direction]
       ), 0n);
-  }
+  };
 
   // Capture de pions
   function captureInDirection(movePosition, playerDiscs, opponentDiscs, direction, edgeMask) {
@@ -249,20 +244,6 @@ const othelloCore = (() => {
     const { blackDiscs, whiteDiscs, currentPlayer } = gameState;
     const validMovesBitboard = calculateValidMoves(blackDiscs, whiteDiscs, currentPlayer);
     return bitPositions(validMovesBitboard);
-  }
-
-  // Comptage des pièces
-  function countPieces(gameState) {
-    if (!gameState) {
-      log("Erreur: gameState est undefined dans countPieces");
-      return { blackCount: 0, whiteCount: 0 };
-    }
-
-    const { blackDiscs, whiteDiscs } = gameState;
-    return {
-      blackCount: countBits(blackDiscs),
-      whiteCount: countBits(whiteDiscs)
-    };
   }
 
   // Détermination du résultat de la partie
@@ -424,21 +405,12 @@ const othelloCore = (() => {
     if (!gameState) return 0;
 
     const { blackDiscs, whiteDiscs, currentPlayer } = gameState;
-    const playerDiscs = evalPlayer === BLACK ? blackDiscs : whiteDiscs;
-    const opponentDiscs = evalPlayer === BLACK ? whiteDiscs : blackDiscs;
-
-    // Évaluation de fin de partie
-    if (currentPlayer === EMPTY) {
-      const { blackCount, whiteCount } = countPieces(gameState);
-
-      if (evalPlayer === BLACK) {
-        if (blackCount > whiteCount) return 10000;
-        if (blackCount < whiteCount) return -10000;
-      } else {
-        if (whiteCount > blackCount) return 10000;
-        if (whiteCount < blackCount) return -10000;
-      }
-      return 0; // Match nul
+    const { playerDiscs, opponentDiscs } = getPlayerAndOpponentDiscs(blackDiscs, whiteDiscs, evalPlayer);
+    if (currentPlayer === 0n) {
+      const blackCount = countBits(blackDiscs);
+      const whiteCount = countBits(whiteDiscs);
+      const pieceDiff = evalPlayer === BLACK ? blackCount - whiteCount : whiteCount - blackCount;
+      return pieceDiff === 0 ? 0 : 1000 * Math.sign(pieceDiff) + pieceDiff;
     }
 
     // Évaluation pondérée des positions
@@ -456,7 +428,7 @@ const othelloCore = (() => {
     const playerMoves = getAllValidMoves({...gameState, currentPlayer: evalPlayer}).length;
     const opponentMoves = getAllValidMoves({...gameState, currentPlayer: evalPlayer === BLACK ? WHITE : BLACK}).length;
 
-    score += 2 * (playerMoves - opponentMoves);
+    score += 6 * (playerMoves - opponentMoves);
 
 
     return score;
