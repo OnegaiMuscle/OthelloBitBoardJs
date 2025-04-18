@@ -3,7 +3,7 @@ import othelloCore from './othelloCore.js';
 const othelloController = (() => {
   let gameState = {};
   let humanPlayer = 1n;
-  let aiPlayer = 2n;
+  let aiPlayer = -1n;
 
   function init() {
     gameState = othelloCore.createNewGame();
@@ -12,8 +12,8 @@ const othelloController = (() => {
 
   function startNewGame(firstPlayer) {
     gameState = othelloCore.createNewGame();
-    humanPlayer = firstPlayer === 'human' ? 1n : 2n;
-    aiPlayer = humanPlayer === 1n ? 2n : 1n;
+    humanPlayer = firstPlayer === 'human' ? 1n : -1n;
+    aiPlayer = humanPlayer === 1n ? -1n : 1n;
     return getFullGameState();
   }
 

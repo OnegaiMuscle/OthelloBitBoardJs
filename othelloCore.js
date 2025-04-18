@@ -1,7 +1,7 @@
 const othelloCore = (() => {
   const EMPTY = 0n;
   const BLACK = 1n;
-  const WHITE = 2n;
+  const WHITE = -1n;
   const NORTH_WEST = -9n;
   const NORTH = -8n;
   const NORTH_EAST = -7n;
@@ -36,10 +36,10 @@ const othelloCore = (() => {
   const DIFFICULTY_DEPTH_MAP = {
     noob: 1,
     easy: 2,
-    medium: 3,
-    hard: 4,
-    pro: 5,
-    expert: 6
+    medium: 4,
+    hard: 5,
+    pro: 6,
+    expert: 7
   };
 
   // Utilité pour déboguer
@@ -176,7 +176,7 @@ const othelloCore = (() => {
 
   function determineNextGameState({ blackDiscs, whiteDiscs }, currentPlayer) {
     // Essayer de passer au joueur suivant
-    const nextPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+    const nextPlayer = -currentPlayer;
 
     // Vérifier si le joueur suivant a des coups valides
     const nextPlayerMoves = calculateValidMoves(blackDiscs, whiteDiscs, nextPlayer);
@@ -349,7 +349,7 @@ const othelloCore = (() => {
       const nextPlayerGameState = {
         blackDiscs,
         whiteDiscs,
-        currentPlayer: currentPlayer === BLACK ? WHITE : BLACK
+        currentPlayer: -currentPlayer
       };
 
       return minimax(
@@ -403,7 +403,6 @@ const othelloCore = (() => {
 
   function evaluateBoard(gameState, evalPlayer) {
     if (!gameState) return 0;
-
     const { blackDiscs, whiteDiscs, currentPlayer } = gameState;
     const { playerDiscs, opponentDiscs } = getPlayerAndOpponentDiscs(blackDiscs, whiteDiscs, evalPlayer);
     if (currentPlayer === 0n) {
@@ -411,24 +410,18 @@ const othelloCore = (() => {
       const whiteCount = countBits(whiteDiscs);
       const pieceDiff = evalPlayer === BLACK ? blackCount - whiteCount : whiteCount - blackCount;
       return pieceDiff === 0 ? 0 : 1000 * Math.sign(pieceDiff) + pieceDiff;
-    }
+    };
 
-    // Évaluation pondérée des positions
     let score = 0;
-    for (let pos = 0; pos < 64; pos++) {
-      const bitPos = 1n << BigInt(pos);
-
-      if ((playerDiscs & bitPos) !== 0n) {
-        score += WEIGHT_BOARD[pos];
-      } else if ((opponentDiscs & bitPos) !== 0n) {
-        score -= WEIGHT_BOARD[pos];
-      }
-    }
+    const playerPositions = bitPositions(playerDiscs);
+    const opponentPositions = bitPositions(opponentDiscs);
+    playerPositions.forEach((pos) => score += WEIGHT_BOARD[pos]);
+    opponentPositions.forEach((pos) => score -= WEIGHT_BOARD[pos]);
 
     const playerMoves = getAllValidMoves({...gameState, currentPlayer: evalPlayer}).length;
-    const opponentMoves = getAllValidMoves({...gameState, currentPlayer: evalPlayer === BLACK ? WHITE : BLACK}).length;
+    const opponentMoves = getAllValidMoves({...gameState, currentPlayer: -evalPlayer}).length;
 
-    score += 6 * (playerMoves - opponentMoves);
+    score += 8 * (playerMoves - opponentMoves);
 
 
     return score;
