@@ -43,10 +43,10 @@ const othelloCore = (() => {
   const DIFFICULTY_DEPTH_MAP = {
     noob: 1,
     easy: 2,
-    medium: 3,
-    hard: 4,
-    pro: 5,
-    expert: 6
+    medium: 4,
+    hard: 6,
+    pro: 7,
+    expert: 8
   };
 
   // Constante pour la multiplication de De Bruijn
@@ -319,9 +319,8 @@ function findBestMoveOptimized(gameState, difficulty) {
   if (!gameState) return null;
 
   const { blackDiscs, whiteDiscs, currentPlayer } = gameState;
-  let depth = DIFFICULTY_DEPTH_MAP[difficulty] || 4;
-  if (countBits(blackDiscs | whiteDiscs) > 52) depth *= 2;
-  console.log("Profondeur de recherche:", depth);
+  const depth = DIFFICULTY_DEPTH_MAP[difficulty] || 4;
+
   // Récupérer le bitboard des coups valides
   const validMovesBitboard = calculateValidMoves(blackDiscs, whiteDiscs, currentPlayer);
 
@@ -348,7 +347,7 @@ function findBestMoveOptimized(gameState, difficulty) {
     }
 
     // Trier les coups par score décroissant
-    //moveEvaluations.sort((a, b) => b.quickScore - a.quickScore);
+    moveEvaluations.sort((a, b) => b.quickScore - a.quickScore);
 
     // Utiliser reduce pour trouver le meilleur coup
     const result = moveEvaluations.reduce((best, { moveIndex, movePositionBitboard }) => {
@@ -558,6 +557,14 @@ function minimaxOptimized(gameState, depth, alpha, beta, isMinimizing, evalPlaye
       opponentBoard ^= bit;
     }
 
+    // Calculer la mobilité pour chaque joueur
+    const playerMovesBitboard = calculateValidMoves(blackDiscs, whiteDiscs, evalPlayer);
+    const opponentMovesBitboard = calculateValidMoves(blackDiscs, whiteDiscs, -evalPlayer);
+
+    const playerMobility = countBits(playerMovesBitboard);
+    const opponentMobility = countBits(opponentMovesBitboard);
+
+    score += 8 * (playerMobility - opponentMobility);
 
     return score;
   }
