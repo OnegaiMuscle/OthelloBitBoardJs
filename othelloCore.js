@@ -307,7 +307,6 @@ const othelloCore = (() => {
   }
 
   // ====== FONCTIONS D'IA ======
-
   // Trouver le meilleur coup avec minimax
   function findBestMove(gameState, difficulty) {
     if (!gameState) return null;
