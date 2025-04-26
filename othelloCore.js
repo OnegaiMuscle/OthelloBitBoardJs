@@ -346,9 +346,7 @@ function findBestMoveOptimized(gameState, difficulty) {
     }
 
     // Trier les coups par score décroissant
-    //moveEvaluations.sort((a, b) => b.quickScore - a.quickScore);
 
-    // Utiliser reduce pour trouver le meilleur coup
     const result = moveEvaluations.reduce((best, { moveIndex, movePositionBitboard }) => {
       const newGameState = makeMoveWithBitboard(gameState, movePositionBitboard);
       if (!newGameState) return best;
